@@ -89,6 +89,11 @@ const App: React.FC = () => {
     // 1. Clone the SVG node
     const svgClone = svgRef.current.cloneNode(true) as SVGSVGElement;
     
+    // Remove potential styling interference (e.g. w-full h-full from Tailwind)
+    svgClone.removeAttribute('style');
+    svgClone.removeAttribute('class');
+    if (svgClone.hasAttribute('className')) svgClone.removeAttribute('className');
+
     // 2. Reset View/Transform for full export
     // The content is inside a <g>. We need to find the first <g> which contains the view transform
     const contentGroup = svgClone.querySelector('g');
@@ -108,11 +113,27 @@ const App: React.FC = () => {
         minX = 0; minY = 0; maxX = floorPlan.width; maxY = floorPlan.height;
     } else {
         floorPlan.rooms.forEach(r => {
-            if (r.x < minX) minX = r.x;
-            if (r.y < minY) minY = r.y;
-            if (r.x + r.width > maxX) maxX = r.x + r.width;
-            if (r.y + r.height > maxY) maxY = r.y + r.height;
+            // Calculate center
+            const cx = r.x + r.width / 2;
+            const cy = r.y + r.height / 2;
+            
+            // Determine effective dimensions based on rotation
+            // We assume 90 degree increments
+            const isRotated90 = Math.abs(r.rotation % 180) === 90;
+            const w = isRotated90 ? r.height : r.width;
+            const h = isRotated90 ? r.width : r.height;
+
+            const rMinX = cx - w / 2;
+            const rMaxX = cx + w / 2;
+            const rMinY = cy - h / 2;
+            const rMaxY = cy + h / 2;
+
+            if (rMinX < minX) minX = rMinX;
+            if (rMaxX > maxX) maxX = rMaxX;
+            if (rMinY < minY) minY = rMinY;
+            if (rMaxY > maxY) maxY = rMaxY;
         });
+        
         floorPlan.plumbingPoints.forEach(p => {
             const r = 20; // Approx buffer for plumbing points
             if (p.x - r < minX) minX = p.x - r;
@@ -122,8 +143,8 @@ const App: React.FC = () => {
         });
     }
 
-    // Add padding
-    const padding = 50;
+    // Add padding (extra generous to cover door swings)
+    const padding = 60;
     minX -= padding;
     minY -= padding;
     maxX += padding;
