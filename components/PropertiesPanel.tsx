@@ -252,5 +252,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             </button>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
