@@ -13,6 +13,7 @@ interface CanvasProps {
   selectedPlumbingId: string | null;
   onSelectPlumbing: (id: string | null) => void;
   svgRef: React.RefObject<SVGSVGElement | null>;
+  onDragStart?: () => void;
 }
 
 const Canvas: React.FC<CanvasProps> = ({ 
@@ -22,7 +23,8 @@ const Canvas: React.FC<CanvasProps> = ({
   onSelectRoom,
   selectedPlumbingId,
   onSelectPlumbing,
-  svgRef
+  svgRef,
+  onDragStart
 }) => {
   // Viewport State
   const [viewTransform, setViewTransform] = useState({ x: 0, y: 0, k: 1 });
@@ -75,6 +77,11 @@ const Canvas: React.FC<CanvasProps> = ({
     
     const room = floorPlan.rooms.find(r => r.id === roomId);
     if (!room) return;
+
+    // Notify parent that a drag operation is starting (for Undo/Redo history)
+    if (onDragStart) {
+        onDragStart();
+    }
 
     const coords = getLocalCoordinates(e, svgRef.current, viewTransform);
 

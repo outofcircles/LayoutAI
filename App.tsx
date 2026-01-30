@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { FloorPlan, RoomType } from './types';
 import { DEMO_FLOOR_PLAN, ROOM_COLORS } from './constants';
 import Canvas from './components/Canvas';
 import { PropertiesPanel } from './components/PropertiesPanel';
+import { useHistory } from './hooks/useHistory';
 import { jsPDF } from 'jspdf';
 import { 
   FileUp, 
@@ -13,11 +14,21 @@ import {
   Info,
   Image as ImageIcon,
   FileText,
-  Upload
+  Upload,
+  Undo,
+  Redo
 } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [floorPlan, setFloorPlan] = useState<FloorPlan>({
+  const { 
+    state: floorPlan, 
+    set: setFloorPlanHistory, 
+    undo, 
+    redo, 
+    canUndo, 
+    canRedo,
+    snapshot
+  } = useHistory<FloorPlan>({
     id: 'empty',
     name: 'New Project',
     width: 800,
@@ -35,10 +46,39 @@ const App: React.FC = () => {
   const selectedRoom = floorPlan.rooms.find(r => r.id === selectedRoomId) || null;
   const selectedPlumbing = floorPlan.plumbingPoints.find(p => p.id === selectedPlumbingId) || null;
 
+  // Keyboard Shortcuts for Undo/Redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Ctrl+Z or Cmd+Z
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          if (canRedo) redo();
+        } else {
+          e.preventDefault();
+          if (canUndo) undo();
+        }
+      }
+      // Check for Ctrl+Y or Cmd+Y (Redo)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        if (canRedo) redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, canUndo, canRedo]);
+
+  // Wrapper for Canvas updates (dragging) which should be transient (overwrite=true)
+  // But we need to support functional updates as well.
+  const setFloorPlanTransient = (update: React.SetStateAction<FloorPlan>) => {
+      setFloorPlanHistory(update, true); // overwrite = true
+  };
+
   // Actions
   const handleImportDemo = () => {
-    // Simulating a PDF Parse
-    setFloorPlan(JSON.parse(JSON.stringify(DEMO_FLOOR_PLAN)));
+    setFloorPlanHistory(JSON.parse(JSON.stringify(DEMO_FLOOR_PLAN)));
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,7 +92,7 @@ const App: React.FC = () => {
         const parsed = JSON.parse(content);
         // Basic validation check
         if (parsed && Array.isArray(parsed.rooms)) {
-          setFloorPlan(parsed);
+          setFloorPlanHistory(parsed);
         } else {
           alert("Invalid layout file format. Missing rooms array.");
         }
@@ -88,7 +128,6 @@ const App: React.FC = () => {
     if (svgClone.hasAttribute('className')) svgClone.removeAttribute('className');
 
     // 2. Reset View/Transform for full export
-    // The content is inside a <g>. We need to find the first <g> which contains the view transform
     const contentGroup = svgClone.querySelector('g');
     if (contentGroup) {
       contentGroup.removeAttribute('transform'); // Reset zoom/pan
@@ -106,12 +145,9 @@ const App: React.FC = () => {
         minX = 0; minY = 0; maxX = floorPlan.width; maxY = floorPlan.height;
     } else {
         floorPlan.rooms.forEach(r => {
-            // Calculate center
             const cx = r.x + r.width / 2;
             const cy = r.y + r.height / 2;
             
-            // Determine effective dimensions based on rotation
-            // We assume 90 degree increments
             const isRotated90 = Math.abs(r.rotation % 180) === 90;
             const w = isRotated90 ? r.height : r.width;
             const h = isRotated90 ? r.width : r.height;
@@ -136,7 +172,7 @@ const App: React.FC = () => {
         });
     }
 
-    // Add padding (extra generous to cover door swings)
+    // Add padding
     const padding = 60;
     minX -= padding;
     minY -= padding;
@@ -182,7 +218,6 @@ const App: React.FC = () => {
          link.download = `${fileName}.jpg`;
          link.click();
       } else if (format === 'pdf') {
-         // Orientation based on aspect ratio
          const orientation = width > height ? 'l' : 'p';
          const pdf = new jsPDF({
            orientation: orientation,
@@ -201,14 +236,15 @@ const App: React.FC = () => {
   };
 
   const handleUpdateRoom = (id: string, updates: any) => {
-    setFloorPlan(prev => ({
+    // Standard update (discrete property change) -> saves history
+    setFloorPlanHistory(prev => ({
       ...prev,
       rooms: prev.rooms.map(r => r.id === id ? { ...r, ...updates } : r)
-    }));
+    }), false);
   };
 
   const handleDeleteRoom = (id: string) => {
-    setFloorPlan(prev => ({
+    setFloorPlanHistory(prev => ({
       ...prev,
       rooms: prev.rooms.filter(r => r.id !== id)
     }));
@@ -216,7 +252,7 @@ const App: React.FC = () => {
   };
 
   const handleDeletePlumbing = (id: string) => {
-    setFloorPlan(prev => ({
+    setFloorPlanHistory(prev => ({
       ...prev,
       plumbingPoints: prev.plumbingPoints.filter(p => p.id !== id)
     }));
@@ -235,7 +271,7 @@ const App: React.FC = () => {
       rotation: 0,
       doors: []
     };
-    setFloorPlan(prev => ({
+    setFloorPlanHistory(prev => ({
       ...prev,
       rooms: [...prev.rooms, newRoom]
     }));
@@ -261,32 +297,52 @@ const App: React.FC = () => {
           <div className="p-2 bg-blue-600 rounded text-white">
             <Layout size={20} />
           </div>
-          <h1 className="font-bold text-lg text-slate-700">LayoutAI <span className="text-slate-400 font-normal">| Apartment Editor</span></h1>
+          <h1 className="font-bold text-lg text-slate-700 hidden sm:block">LayoutAI <span className="text-slate-400 font-normal">| Apartment Editor</span></h1>
         </div>
 
         <div className="flex items-center gap-2">
+           {/* Undo / Redo */}
+           <div className="flex items-center bg-gray-100 rounded-md p-0.5 mr-2">
+             <button 
+               onClick={undo} 
+               disabled={!canUndo}
+               className={`p-1.5 rounded ${canUndo ? 'hover:bg-gray-200 text-slate-700' : 'text-gray-300 cursor-not-allowed'}`}
+               title="Undo (Ctrl+Z)"
+             >
+               <Undo size={18} />
+             </button>
+             <button 
+               onClick={redo} 
+               disabled={!canRedo}
+               className={`p-1.5 rounded ${canRedo ? 'hover:bg-gray-200 text-slate-700' : 'text-gray-300 cursor-not-allowed'}`}
+               title="Redo (Ctrl+Y)"
+             >
+               <Redo size={18} />
+             </button>
+           </div>
+
           <button 
             onClick={handleImportDemo}
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
           >
-            <FileUp size={16} /> Load Demo
+            <FileUp size={16} /> <span className="hidden sm:inline">Load Demo</span>
           </button>
           
           <button 
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
           >
-            <Upload size={16} /> Upload JSON
+            <Upload size={16} /> <span className="hidden sm:inline">Upload</span>
           </button>
 
-          <div className="h-6 w-px bg-gray-300 mx-2"></div>
+          <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
 
           <button 
             onClick={() => handleExport('jpeg')}
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md transition-colors"
             title="Export as JPEG"
           >
-            <ImageIcon size={16} /> JPG
+            <ImageIcon size={16} /> <span className="hidden sm:inline">JPG</span>
           </button>
           
           <button 
@@ -294,14 +350,14 @@ const App: React.FC = () => {
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md transition-colors"
             title="Export as PDF"
           >
-            <FileText size={16} /> PDF
+            <FileText size={16} /> <span className="hidden sm:inline">PDF</span>
           </button>
 
           <button 
             onClick={handleSaveDesign}
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-slate-800 hover:bg-slate-900 rounded-md transition-colors ml-2"
           >
-            <Save size={16} /> Save JSON
+            <Save size={16} /> <span className="hidden sm:inline">Save</span>
           </button>
         </div>
       </header>
@@ -328,7 +384,7 @@ const App: React.FC = () => {
         <div className="flex-1 relative flex flex-col">
             
             {/* Constraint Legend */}
-            <div className="absolute bottom-4 left-4 bg-white/90 p-2 rounded shadow-sm border border-gray-200 z-10 text-xs text-gray-600 space-y-1">
+            <div className="absolute bottom-4 left-4 bg-white/90 p-2 rounded shadow-sm border border-gray-200 z-10 text-xs text-gray-600 space-y-1 pointer-events-none select-none">
                  <div className="flex items-center gap-2">
                     <span className="w-3 h-3 rounded-full bg-blue-500 block"></span> Plumbing Points
                  </div>
@@ -342,12 +398,13 @@ const App: React.FC = () => {
 
             <Canvas 
                 floorPlan={floorPlan} 
-                setFloorPlan={setFloorPlan}
+                setFloorPlan={setFloorPlanTransient}
                 selectedRoomId={selectedRoomId}
                 onSelectRoom={setSelectedRoomId}
                 selectedPlumbingId={selectedPlumbingId}
                 onSelectPlumbing={setSelectedPlumbingId}
                 svgRef={svgRef}
+                onDragStart={snapshot} // Snapshot state before drag begins
             />
         </div>
 
