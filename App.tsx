@@ -96,24 +96,57 @@ const App: React.FC = () => {
       contentGroup.removeAttribute('transform'); // Reset zoom/pan
     }
     
-    // 3. Set dimensions to match actual floor plan bounds
-    const width = floorPlan.width;
-    const height = floorPlan.height;
+    // 3. Calculate Bounding Box of content
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
 
+    const hasContent = floorPlan.rooms.length > 0 || floorPlan.plumbingPoints.length > 0;
+
+    if (!hasContent) {
+        minX = 0; minY = 0; maxX = floorPlan.width; maxY = floorPlan.height;
+    } else {
+        floorPlan.rooms.forEach(r => {
+            if (r.x < minX) minX = r.x;
+            if (r.y < minY) minY = r.y;
+            if (r.x + r.width > maxX) maxX = r.x + r.width;
+            if (r.y + r.height > maxY) maxY = r.y + r.height;
+        });
+        floorPlan.plumbingPoints.forEach(p => {
+            const r = 20; // Approx buffer for plumbing points
+            if (p.x - r < minX) minX = p.x - r;
+            if (p.y - r < minY) minY = p.y - r;
+            if (p.x + r > maxX) maxX = p.x + r;
+            if (p.y + r > maxY) maxY = p.y + r;
+        });
+    }
+
+    // Add padding
+    const padding = 50;
+    minX -= padding;
+    minY -= padding;
+    maxX += padding;
+    maxY += padding;
+
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    // 4. Set dimensions to match actual content bounds
     svgClone.setAttribute('width', width.toString());
     svgClone.setAttribute('height', height.toString());
-    svgClone.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svgClone.setAttribute('viewBox', `${minX} ${minY} ${width} ${height}`);
     
-    // 4. Serialize
+    // 5. Serialize
     const serializer = new XMLSerializer();
     const svgString = serializer.serializeToString(svgClone);
     const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     
-    // 5. Load into Image
+    // 6. Load into Image
     const img = new Image();
     img.onload = () => {
-      // 6. Draw to Canvas
+      // 7. Draw to Canvas
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
