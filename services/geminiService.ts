@@ -1,9 +1,16 @@
 import { GoogleGenAI } from "@google/genai";
 import { FloorPlan, AIAnalysisResult } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const analyzeLayout = async (floorPlan: FloorPlan): Promise<AIAnalysisResult> => {
+  const apiKey = process.env.API_KEY;
+
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please configure your API key to use AI features.");
+  }
+
+  // Initialize the client only when the function is called
+  const ai = new GoogleGenAI({ apiKey });
+
   try {
     const prompt = `
       Analyze the following floor plan JSON data for an apartment. 
@@ -31,7 +38,7 @@ export const analyzeLayout = async (floorPlan: FloorPlan): Promise<AIAnalysisRes
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json"
