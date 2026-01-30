@@ -1,0 +1,5 @@
+{
+  "name": "LayoutAI - Apartment Editor",
+  "description": "Interactive 2D floor plan editor with drag-and-drop, constraints, and AI-powered layout analysis.",
+  "requestFramePermissions": []
+}
