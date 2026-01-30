@@ -2,14 +2,9 @@ import { GoogleGenAI } from "@google/genai";
 import { FloorPlan, AIAnalysisResult } from "../types";
 
 export const analyzeLayout = async (floorPlan: FloorPlan): Promise<AIAnalysisResult> => {
-  const apiKey = process.env.API_KEY;
-
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please configure your API key to use AI features.");
-  }
-
-  // Initialize the client only when the function is called
-  const ai = new GoogleGenAI({ apiKey });
+  // Use process.env.API_KEY as per guidelines.
+  // The API key must be obtained exclusively from process.env.API_KEY.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const prompt = `
