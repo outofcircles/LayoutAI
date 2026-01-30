@@ -44,9 +44,3 @@ export interface FloorPlan {
   rooms: Room[];
   plumbingPoints: PlumbingPoint[];
 }
-
-export interface AIAnalysisResult {
-  score: number;
-  critique: string;
-  suggestions: string[];
-}

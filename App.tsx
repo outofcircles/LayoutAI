@@ -1,14 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { FloorPlan, AIAnalysisResult, RoomType } from './types';
+import { FloorPlan, RoomType } from './types';
 import { DEMO_FLOOR_PLAN, ROOM_COLORS } from './constants';
 import Canvas from './components/Canvas';
 import { PropertiesPanel } from './components/PropertiesPanel';
-import { analyzeLayout } from './services/geminiService';
 import { jsPDF } from 'jspdf';
 import { 
   FileUp, 
   Save, 
-  Sparkles, 
   Plus, 
   Layout, 
   AlertTriangle,
@@ -31,9 +29,6 @@ const App: React.FC = () => {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [selectedPlumbingId, setSelectedPlumbingId] = useState<string | null>(null);
   
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiResult, setAiResult] = useState<AIAnalysisResult | null>(null);
-  
   const svgRef = useRef<SVGSVGElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -44,7 +39,6 @@ const App: React.FC = () => {
   const handleImportDemo = () => {
     // Simulating a PDF Parse
     setFloorPlan(JSON.parse(JSON.stringify(DEMO_FLOOR_PLAN)));
-    setAiResult(null);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -59,7 +53,6 @@ const App: React.FC = () => {
         // Basic validation check
         if (parsed && Array.isArray(parsed.rooms)) {
           setFloorPlan(parsed);
-          setAiResult(null); 
         } else {
           alert("Invalid layout file format. Missing rooms array.");
         }
@@ -250,19 +243,6 @@ const App: React.FC = () => {
     setSelectedPlumbingId(null);
   };
 
-  const runAnalysis = async () => {
-    setIsAnalyzing(true);
-    setAiResult(null);
-    try {
-      const result = await analyzeLayout(floorPlan);
-      setAiResult(result);
-    } catch (e) {
-      alert("Analysis failed. Please check your API key.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-100 font-sans text-slate-800">
       
@@ -297,16 +277,6 @@ const App: React.FC = () => {
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
           >
             <Upload size={16} /> Upload JSON
-          </button>
-
-          <div className="h-6 w-px bg-gray-300 mx-2"></div>
-           <button 
-             onClick={runAnalysis}
-             disabled={isAnalyzing || floorPlan.rooms.length === 0}
-             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-md transition-colors disabled:opacity-50"
-          >
-            <Sparkles size={16} /> 
-            {isAnalyzing ? 'Analyzing...' : 'AI Critique'}
           </button>
 
           <div className="h-6 w-px bg-gray-300 mx-2"></div>
@@ -357,36 +327,6 @@ const App: React.FC = () => {
         {/* Main Canvas Area */}
         <div className="flex-1 relative flex flex-col">
             
-            {/* AI Results Overlay */}
-            {aiResult && (
-                <div className="absolute top-4 right-4 w-80 bg-white/95 backdrop-blur shadow-lg rounded-lg border border-violet-100 p-4 z-10 animate-in fade-in slide-in-from-top-4">
-                    <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-bold text-violet-800 flex items-center gap-2">
-                            <Sparkles size={16} /> AI Analysis
-                        </h3>
-                        <span className={`text-xs font-bold px-2 py-1 rounded ${aiResult.score > 70 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                            Score: {aiResult.score}/100
-                        </span>
-                    </div>
-                    <p className="text-sm text-slate-600 mb-3 leading-relaxed border-b border-gray-100 pb-2">
-                        {aiResult.critique}
-                    </p>
-                    <div>
-                        <h4 className="text-xs font-bold uppercase text-slate-400 mb-2">Suggestions</h4>
-                        <ul className="space-y-2">
-                            {aiResult.suggestions.map((s, i) => (
-                                <li key={i} className="text-xs flex gap-2 text-slate-700 bg-violet-50 p-2 rounded">
-                                    <span className="text-violet-500 font-bold">•</span> {s}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                    <button onClick={() => setAiResult(null)} className="mt-3 text-xs text-slate-400 hover:text-slate-600 underline w-full text-center">
-                        Dismiss
-                    </button>
-                </div>
-            )}
-
             {/* Constraint Legend */}
             <div className="absolute bottom-4 left-4 bg-white/90 p-2 rounded shadow-sm border border-gray-200 z-10 text-xs text-gray-600 space-y-1">
                  <div className="flex items-center gap-2">
