@@ -26,7 +26,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       <div className="w-80 border-l border-gray-200 bg-white flex flex-col shadow-xl z-20">
         <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
           <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-            <Droplets size={16} className="text-blue-500"/> Plumbing Point
+            <Droplets size={16} className="text-blue-500" /> Plumbing Point
           </h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded text-gray-500">
             <X size={18} />
@@ -183,7 +183,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <h4 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                    <DoorOpen size={16} className="text-slate-500"/> Doors
+                    <DoorOpen size={16} className="text-slate-500" /> Doors
                 </h4>
                 <button 
                     onClick={handleAddDoor}
